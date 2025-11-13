@@ -282,10 +282,28 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               child: Center(
-                child: Icon(
-                  Icons.eco,
-                  size: 140,
-                  color: const Color(0xFF4CAF50),
+                child: Container(
+                  width: 140,
+                  height: 140,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.transparent,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color.fromRGBO(255, 255, 255, 0.30),
+                        blurRadius: 16,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/product.png',
+                        fit: BoxFit.contain,
+                        width: 140,
+                        height: 140,
+                      ),
+                    ),
                 ),
               ),
             ),

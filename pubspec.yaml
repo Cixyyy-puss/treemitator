@@ -22,6 +22,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/product.png
+    - assets/logo.jpg
 
 # Configuration for flutter_launcher_icons
 flutter_icons:
