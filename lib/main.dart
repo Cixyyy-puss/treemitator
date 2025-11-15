@@ -13,7 +13,8 @@ void main() async {
       appId: '1:970810672437:android:e61cf34240f952b79d387c',
       messagingSenderId: '970810672437',
       projectId: 'treemitator',
-      databaseURL: 'https://treemitator-default-rtdb.asia-southeast1.firebasedatabase.app',
+      databaseURL:
+          'https://treemitator-default-rtdb.asia-southeast1.firebasedatabase.app',
       storageBucket: 'treemitator.firebasestorage.app',
     ),
   );
@@ -47,6 +48,8 @@ class SensorData {
   final double temperature;
   final double humidity;
   final double airPressure;
+  final double oxygen;
+  final double co2;
   final int vocIndex;
   final String timestamp;
 
@@ -54,6 +57,8 @@ class SensorData {
     this.temperature = 0.0,
     this.humidity = 0.0,
     this.airPressure = 0.0,
+    this.oxygen = 0.0,
+    this.co2 = 0.0,
     this.vocIndex = 0,
     this.timestamp = '',
   });
@@ -63,6 +68,8 @@ class SensorData {
       temperature: (map['Temperature'] ?? 0).toDouble(),
       humidity: (map['Humidity'] ?? 0).toDouble(),
       airPressure: (map['Pressure'] ?? 0).toDouble(),
+      oxygen: ((map['Oxygen'] ?? map['O2'] ?? 0) as num).toDouble(),
+      co2: ((map['CO2'] ?? 0) as num).toDouble(),
       vocIndex: (map['VOC_Index'] ?? 0).toInt(),
       timestamp: DateFormat('hh:mm:ss a').format(DateTime.now()),
     );
@@ -90,15 +97,15 @@ class SensorViewModel extends ChangeNotifier {
       if (event.snapshot.value != null) {
         final data = event.snapshot.value as Map<dynamic, dynamic>;
         _lastUpdateTimeMillis = DateTime.now().millisecondsSinceEpoch;
-        
+
         final newData = SensorData.fromMap(data);
         _latestSensorData = newData;
-        
+
         _sensorHistory.insert(0, newData);
         if (_sensorHistory.length > 100) {
           _sensorHistory.removeLast();
         }
-        
+
         notifyListeners();
       }
     });
@@ -113,7 +120,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   String _displayText = '';
   late AnimationController _controller;
   late Animation<double> _animation;
@@ -127,9 +135,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
     _animation = Tween<double>(begin: 0.0, end: 1.0).animate(_controller);
     _controller.forward();
-    
+
     _animateText();
-    
+
     Future.delayed(const Duration(seconds: 5), () {
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -218,7 +226,9 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final screens = [
-      HomeScreen(onNavigateToDashboard: () => setState(() => _selectedIndex = 1)),
+      HomeScreen(
+        onNavigateToDashboard: () => setState(() => _selectedIndex = 1),
+      ),
       DashboardScreen(viewModel: _viewModel),
       const SettingsScreen(),
     ];
@@ -228,20 +238,15 @@ class _MainScreenState extends State<MainScreen> {
       bottomNavigationBar: NavigationBar(
         backgroundColor: const Color(0xFF323232),
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
+        onDestinationSelected: (index) =>
+            setState(() => _selectedIndex = index),
         destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
+          NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
           NavigationDestination(
             icon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
+          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );
@@ -275,7 +280,6 @@ class HomeScreen extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    // replaced deprecated withOpacity -> withAlpha
                     Colors.white.withAlpha((0.1 * 255).round()),
                     Colors.transparent,
                   ],
@@ -296,14 +300,14 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/product.png',
-                        fit: BoxFit.contain,
-                        width: 140,
-                        height: 140,
-                      ),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/product.png',
+                      fit: BoxFit.contain,
+                      width: 140,
+                      height: 140,
                     ),
+                  ),
                 ),
               ),
             ),
@@ -318,7 +322,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 'Monitors Treemitator BLOOM in real-time. Track sensor readings with precision and a dynamic system.',
@@ -326,14 +330,14 @@ class HomeScreen extends StatelessWidget {
                 style: TextStyle(color: Color(0xFFADADAD), fontSize: 16),
               ),
             ),
-            const SizedBox(height: 40),
+            SizedBox(height: 40),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
+              padding: EdgeInsets.symmetric(horizontal: 32),
               child: Container(
                 height: 60,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     colors: [Color(0xFF8BC34A), Color(0xFF388E3C)],
                   ),
                 ),
@@ -346,7 +350,7 @@ class HomeScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
@@ -364,25 +368,25 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 40),
+            SizedBox(height: 40),
             _buildFeatureCard(
               'Real-Time Data',
               'Live sensor readings updated instantly from your Arduino devices',
               Icons.timeline,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             _buildFeatureCard(
               'Analytics',
               'Shows data its readings over time in graphs',
               Icons.bar_chart,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             _buildFeatureCard(
               'Secure',
               'Your sensor data is protected with enterprise-grade security',
               Icons.lock,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
           ],
         ),
       ),
@@ -413,7 +417,10 @@ class HomeScreen extends StatelessWidget {
                   ),
                   Text(
                     description,
-                    style: const TextStyle(color: Color(0xFFADADAD), fontSize: 14),
+                    style: const TextStyle(
+                      color: Color(0xFFADADAD),
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               ),
@@ -442,11 +449,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (widget.viewModel.lastUpdateTimeMillis > 0) {
         setState(() {
-          _timeSinceUpdate = 
-              (DateTime.now().millisecondsSinceEpoch - widget.viewModel.lastUpdateTimeMillis) ~/ 1000;
+          _timeSinceUpdate =
+              (DateTime.now().millisecondsSinceEpoch -
+                  widget.viewModel.lastUpdateTimeMillis) ~/
+              1000;
         });
       }
     });
@@ -475,7 +484,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         const Text(
           'Sensor Dashboard',
-          style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const Text(
           'Real-time monitoring of your Arduino IoT devices',
@@ -510,10 +523,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             Expanded(
               child: _buildSensorCard(
-                'Air Pressure',
-                '${data.airPressure.toStringAsFixed(0)} hPa',
+                'Oxygen (O2)',
+                '${data.oxygen.toStringAsFixed(1)}% O2',
                 'Normal',
-                Icons.speed,
+                Icons.bubble_chart,
                 const Color(0xFF4CAF50),
               ),
             ),
@@ -529,17 +542,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSensorCard(
+                'Carbon Dioxide(CO2)',
+                '${data.co2.toStringAsFixed(0)} ppm',
+                'Normal',
+                Icons.cloud,
+                const Color(0xFF4CAF50),
+              ),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(child: SizedBox()),
+          ],
+        ),
         const SizedBox(height: 32),
         const Text(
           'Data Analytics',
-          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 16),
         _buildAnalyticsCard(history),
         const SizedBox(height: 32),
         const Text(
           'Data Log',
-          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 16),
         _buildDataLogHeader(),
@@ -548,7 +585,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 16),
         const Text(
           'System Status',
-          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 16),
         _buildSystemStatusCard(isConnected),
@@ -556,7 +597,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildSensorCard(String title, String value, String status, IconData icon, Color iconColor) {
+  Widget _buildSensorCard(
+    String title,
+    String value,
+    String status,
+    IconData icon,
+    Color iconColor,
+  ) {
     return Card(
       color: const Color(0xFF323232),
       shape: RoundedRectangleBorder(
@@ -575,14 +622,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Icon(icon, color: iconColor, size: 20),
                 const SizedBox(width: 8),
-                Text(title, style: const TextStyle(color: Colors.white, fontSize: 16)),
+                Text(
+                  title,
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
               ],
             ),
             Text(
               value,
-              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            Text(status, style: const TextStyle(color: Color(0xFFADADAD), fontSize: 12)),
+            Text(
+              status,
+              style: const TextStyle(color: Color(0xFFADADAD), fontSize: 12),
+            ),
           ],
         ),
       ),
@@ -600,17 +657,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Row(
               children: [
                 _buildLegendItem(const Color(0xFF8BC34A), 'Temperature'),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 _buildLegendItem(const Color(0xFF61D4FF), 'Humidity'),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 _buildLegendItem(Colors.grey, 'VOC Index'),
+                const SizedBox(width: 12),
+                _buildLegendItem(const Color(0xFFFFC107), 'Oxygen (O2)'),
+                const SizedBox(width: 12),
+                _buildLegendItem(const Color(0xFFFF7043), 'CO2'),
               ],
             ),
             const SizedBox(height: 16),
             SizedBox(
               height: 180,
               child: history.isEmpty
-                  ? const Center(child: Text('No data available', style: TextStyle(color: Colors.grey)))
+                  ? const Center(
+                      child: Text(
+                        'No data available',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
                   : LineChart(
                       LineChartData(
                         gridData: const FlGridData(show: false),
@@ -631,6 +697,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             history.reversed.take(20).toList(),
                             (data) => data.vocIndex.toDouble(),
                             Colors.grey,
+                          ),
+                          _buildLineChartBarData(
+                            history.reversed.take(20).toList(),
+                            (data) => data.oxygen,
+                            const Color(0xFFFFC107),
+                          ),
+                          _buildLineChartBarData(
+                            history.reversed.take(20).toList(),
+                            (data) => data.co2,
+                            const Color(0xFFFF7043),
                           ),
                         ],
                       ),
@@ -663,9 +739,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildLegendItem(Color color, String label) {
     return Row(
       children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 8),
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+        Text(label, style: TextStyle(color: Colors.white, fontSize: 14)),
       ],
     );
   }
@@ -677,19 +757,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Expanded(
             flex: 3,
-            child: Text('Time', style: TextStyle(color: Color(0xFFADADAD), fontWeight: FontWeight.bold)),
+            child: Text(
+              'Time',
+              style: TextStyle(
+                color: Color(0xFFADADAD),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
           Expanded(
             flex: 2,
-            child: Text('Temp', textAlign: TextAlign.end, style: TextStyle(color: Color(0xFFADADAD), fontWeight: FontWeight.bold)),
+            child: Text(
+              'Temp',
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                color: Color(0xFFADADAD),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
           Expanded(
             flex: 2,
-            child: Text('Humid', textAlign: TextAlign.end, style: TextStyle(color: Color(0xFFADADAD), fontWeight: FontWeight.bold)),
+            child: Text(
+              'Humid',
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                color: Color(0xFFADADAD),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
           Expanded(
             flex: 2,
-            child: Text('VOC', textAlign: TextAlign.end, style: TextStyle(color: Color(0xFFADADAD), fontWeight: FontWeight.bold)),
+            child: Text(
+              'VOC',
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                color: Color(0xFFADADAD),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'O2',
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                color: Color(0xFFADADAD),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              'CO2',
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                color: Color(0xFFADADAD),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -699,7 +828,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildDataLogRow(SensorData log, bool isLatest) {
     return Container(
       decoration: BoxDecoration(
-        color: isLatest ? Color(0xFF4CAF50).withAlpha((0.1 * 255).round()) : Colors.transparent,
+        color: isLatest
+            ? Color(0xFF4CAF50).withAlpha((0.1 * 255).round())
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
@@ -707,19 +838,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Expanded(
             flex: 3,
-            child: Text(log.timestamp, style: const TextStyle(color: Colors.white, fontSize: 14)),
+            child: Text(
+              log.timestamp,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
           ),
           Expanded(
             flex: 2,
-            child: Text('${log.temperature.toStringAsFixed(1)}°C', textAlign: TextAlign.end, style: const TextStyle(color: Colors.white, fontSize: 14)),
+            child: Text(
+              '${log.temperature.toStringAsFixed(1)}°C',
+              textAlign: TextAlign.end,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
           ),
           Expanded(
             flex: 2,
-            child: Text('${log.humidity.toStringAsFixed(1)}%', textAlign: TextAlign.end, style: const TextStyle(color: Colors.white, fontSize: 14)),
+            child: Text(
+              '${log.humidity.toStringAsFixed(1)}%',
+              textAlign: TextAlign.end,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
           ),
           Expanded(
             flex: 2,
-            child: Text('${log.vocIndex}', textAlign: TextAlign.end, style: const TextStyle(color: Colors.white, fontSize: 14)),
+            child: Text(
+              log.vocIndex.toString(),
+              textAlign: TextAlign.end,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              '${log.oxygen.toStringAsFixed(1)}%',
+              textAlign: TextAlign.end,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              log.co2.toStringAsFixed(0),
+              textAlign: TextAlign.end,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
           ),
         ],
       ),
@@ -731,8 +893,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final lastUpdate = widget.viewModel.lastUpdateTimeMillis == 0
         ? 'Never'
         : _timeSinceUpdate < 60
-            ? '${_timeSinceUpdate}s ago'
-            : '${_timeSinceUpdate ~/ 60}m ago';
+        ? '${_timeSinceUpdate}s ago'
+        : '${_timeSinceUpdate ~/ 60}m ago';
 
     return Card(
       color: const Color(0xFF323232),
@@ -744,18 +906,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Connection', style: TextStyle(color: Color(0xFFADADAD), fontSize: 16)),
+                const Text(
+                  'Connection',
+                  style: TextStyle(color: Color(0xFFADADAD), fontSize: 16),
+                ),
                 Row(
                   children: [
                     Container(
                       width: 8,
                       height: 8,
-                      decoration: BoxDecoration(color: connectionColor, shape: BoxShape.circle),
+                      decoration: BoxDecoration(
+                        color: connectionColor,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       isConnected ? 'Connected' : 'Disconnected',
-                      style: TextStyle(color: connectionColor, fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: connectionColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -777,8 +949,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Color(0xFFADADAD), fontSize: 16)),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(label, style: TextStyle(color: Color(0xFFADADAD), fontSize: 16)),
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -807,7 +986,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 16),
           const Text(
             'Settings',
-            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -832,10 +1015,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Alert on sensor warnings', style: TextStyle(color: Colors.white)),
+                      const Text(
+                        'Alert on sensor warnings',
+                        style: TextStyle(color: Colors.white),
+                      ),
                       Switch(
                         value: _alertOnWarnings,
-                        onChanged: (value) => setState(() => _alertOnWarnings = value),
+                        onChanged: (value) =>
+                            setState(() => _alertOnWarnings = value),
                         activeThumbColor: const Color(0xFF4CAF50),
                       ),
                     ],
@@ -844,10 +1031,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Connection status alerts', style: TextStyle(color: Colors.white)),
+                      const Text(
+                        'Connection status alerts',
+                        style: TextStyle(color: Colors.white),
+                      ),
                       Switch(
                         value: _connectionAlerts,
-                        onChanged: (value) => setState(() => _connectionAlerts = value),
+                        onChanged: (value) =>
+                            setState(() => _connectionAlerts = value),
                         activeThumbColor: const Color(0xFF4CAF50),
                       ),
                     ],
@@ -867,12 +1058,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 16),
-          child: Text(title, style: const TextStyle(color: Color(0xFFADADAD), fontSize: 12)),
+          child: Text(
+            title,
+            style: const TextStyle(color: Color(0xFFADADAD), fontSize: 12),
+          ),
         ),
         const SizedBox(height: 8),
         Card(
-          color: const Color(0xFF323232),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          color: Color(0xFF323232),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: content,
         ),
       ],
