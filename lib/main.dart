@@ -276,7 +276,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ],
                     ),
                     child: ClipOval(
-                      child: Image.asset('assets/logo.jpg', fit: BoxFit.cover),
+                      child: Image.asset('assets/logo.png', fit: BoxFit.cover),
                     ),
                   );
                 },
