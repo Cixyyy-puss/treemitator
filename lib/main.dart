@@ -52,6 +52,7 @@ class SensorData {
   final double co2;
   final int vocIndex;
   final String timestamp;
+  final DateTime dateTime;
 
   SensorData({
     this.temperature = 0.0,
@@ -60,8 +61,10 @@ class SensorData {
     this.oxygen = 0.0,
     this.co2 = 0.0,
     this.vocIndex = 0,
-    this.timestamp = '',
-  });
+    String? timestamp,
+    DateTime? dateTime,
+  }) : timestamp = timestamp ?? DateFormat('hh:mm:ss a').format(DateTime.now()),
+       dateTime = dateTime ?? DateTime.now();
 
   factory SensorData.fromMap(Map<dynamic, dynamic> map) {
     return SensorData(
@@ -72,6 +75,33 @@ class SensorData {
       co2: ((map['CO2'] ?? 0) as num).toDouble(),
       vocIndex: (map['VOC_Index'] ?? 0).toInt(),
       timestamp: DateFormat('hh:mm:ss a').format(DateTime.now()),
+      dateTime: DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'temperature': temperature,
+      'humidity': humidity,
+      'airPressure': airPressure,
+      'oxygen': oxygen,
+      'co2': co2,
+      'vocIndex': vocIndex,
+      'timestamp': timestamp,
+      'dateTime': dateTime.toIso8601String(),
+    };
+  }
+
+  factory SensorData.fromJson(Map<String, dynamic> json) {
+    return SensorData(
+      temperature: json['temperature'],
+      humidity: json['humidity'],
+      airPressure: json['airPressure'],
+      oxygen: json['oxygen'],
+      co2: json['co2'],
+      vocIndex: json['vocIndex'],
+      timestamp: json['timestamp'],
+      dateTime: DateTime.parse(json['dateTime']),
     );
   }
 }
@@ -81,15 +111,39 @@ class SensorViewModel extends ChangeNotifier {
   SensorData _latestSensorData = SensorData();
   final List<SensorData> _sensorHistory = [];
   int _lastUpdateTimeMillis = 0;
+  bool _isConnected = false;
 
   SensorData get latestSensorData => _latestSensorData;
   List<SensorData> get sensorHistory => _sensorHistory;
   int get lastUpdateTimeMillis => _lastUpdateTimeMillis;
+  bool get isConnected => _isConnected;
 
   final DatabaseReference _database = FirebaseDatabase.instance.ref('Sensors');
 
   SensorViewModel() {
+    _loadHistoricalData();
     _listenToSensorData();
+    _startConnectionMonitor();
+  }
+
+  Future<void> _loadHistoricalData() async {
+    // Data will persist in memory during app session
+    // To add permanent storage, use shared_preferences or a local database
+    notifyListeners();
+  }
+
+  Future<void> _saveHistoricalData() async {
+    // Data will persist in memory during app session
+    // To add permanent storage, use shared_preferences or a local database
+  }
+
+  void _startConnectionMonitor() {
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      _isConnected =
+          _lastUpdateTimeMillis > 0 && (now - _lastUpdateTimeMillis) < 5000;
+      notifyListeners();
+    });
   }
 
   void _listenToSensorData() {
@@ -97,14 +151,15 @@ class SensorViewModel extends ChangeNotifier {
       if (event.snapshot.value != null) {
         final data = event.snapshot.value as Map<dynamic, dynamic>;
         _lastUpdateTimeMillis = DateTime.now().millisecondsSinceEpoch;
+        _isConnected = true;
 
         final newData = SensorData.fromMap(data);
         _latestSensorData = newData;
 
         _sensorHistory.insert(0, newData);
-        if (_sensorHistory.length > 100) {
-          _sensorHistory.removeLast();
-        }
+
+        // Save data (currently in memory only)
+        _saveHistoricalData();
 
         notifyListeners();
       }
@@ -112,7 +167,7 @@ class SensorViewModel extends ChangeNotifier {
   }
 }
 
-// Splash Screen (Cover Page)
+// Splash Screen with Glowing Logo
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -121,20 +176,34 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   String _displayText = '';
-  late AnimationController _controller;
-  late Animation<double> _animation;
+  late AnimationController _textController;
+  late AnimationController _glowController;
+  late Animation<double> _textAnimation;
+  late Animation<double> _glowAnimation;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+
+    _textController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
-    _animation = Tween<double>(begin: 0.0, end: 1.0).animate(_controller);
-    _controller.forward();
+    _textAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(_textController);
+    _textController.forward();
+
+    _glowController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat(reverse: true);
+    _glowAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
 
     _animateText();
 
@@ -160,7 +229,8 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _controller.dispose();
+    _textController.dispose();
+    _glowController.dispose();
     super.dispose();
   }
 
@@ -176,22 +246,64 @@ class _SplashScreenState extends State<SplashScreen>
           ),
         ),
         child: Center(
-          child: FadeTransition(
-            opacity: _animation,
-            child: ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [Color(0xFFCCCCCC), Colors.white, Color(0xFFB8B8B8)],
-              ).createShader(bounds),
-              child: Text(
-                _displayText,
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Glowing Logo
+              AnimatedBuilder(
+                animation: _glowAnimation,
+                builder: (context, child) {
+                  return Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(
+                            0xFF4CAF50,
+                          ).withValues(alpha: _glowAnimation.value * 0.8),
+                          blurRadius: 40 * _glowAnimation.value,
+                          spreadRadius: 10 * _glowAnimation.value,
+                        ),
+                        BoxShadow(
+                          color: const Color(
+                            0xFF8BC34A,
+                          ).withValues(alpha: _glowAnimation.value * 0.6),
+                          blurRadius: 60 * _glowAnimation.value,
+                          spreadRadius: 20 * _glowAnimation.value,
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: Image.asset('assets/logo.jpg', fit: BoxFit.cover),
+                    ),
+                  );
+                },
               ),
-            ),
+              const SizedBox(height: 40),
+              FadeTransition(
+                opacity: _textAnimation,
+                child: ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [
+                      Color(0xFFCCCCCC),
+                      Colors.white,
+                      Color(0xFFB8B8B8),
+                    ],
+                  ).createShader(bounds),
+                  child: Text(
+                    _displayText,
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -253,7 +365,90 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-// Home Screen
+// Bubble Animation Widget
+class BubbleAnimation extends StatefulWidget {
+  const BubbleAnimation({super.key});
+
+  @override
+  State<BubbleAnimation> createState() => _BubbleAnimationState();
+}
+
+class _BubbleAnimationState extends State<BubbleAnimation>
+    with TickerProviderStateMixin {
+  late List<AnimationController> _controllers;
+  late List<Animation<double>> _animations;
+  late List<double> _leftPositions;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = [];
+    _animations = [];
+    _leftPositions = [];
+
+    for (int i = 0; i < 5; i++) {
+      final controller = AnimationController(
+        duration: Duration(milliseconds: 2000 + (i * 500)),
+        vsync: this,
+      )..repeat();
+
+      final animation = Tween<double>(
+        begin: 1.0,
+        end: 0.0,
+      ).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut));
+
+      _controllers.add(controller);
+      _animations.add(animation);
+      _leftPositions.add((i * 40.0) + 20.0);
+
+      Future.delayed(Duration(milliseconds: i * 400), () {
+        if (mounted) controller.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: List.generate(_animations.length, (index) {
+        return AnimatedBuilder(
+          animation: _animations[index],
+          builder: (context, child) {
+            return Positioned(
+              left: _leftPositions[index],
+              bottom: _animations[index].value * 180,
+              child: Opacity(
+                opacity: _animations[index].value * 0.6,
+                child: Container(
+                  width: 8 + (index * 2.0),
+                  height: 8 + (index * 2.0),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF4CAF50).withValues(alpha: 0.5),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      }),
+    );
+  }
+}
+
+// Home Screen with Larger Product Image and Bubble Animation
 class HomeScreen extends StatelessWidget {
   final VoidCallback onNavigateToDashboard;
 
@@ -274,40 +469,52 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             Container(
-              width: 180,
-              height: 180,
+              width: 230,
+              height: 230,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    Colors.white.withAlpha((0.1 * 255).round()),
+                    Colors.white.withValues(alpha: 0.1),
                     Colors.transparent,
                   ],
                 ),
               ),
               child: Center(
-                child: Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.transparent,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color.fromRGBO(255, 255, 255, 0.30),
-                        blurRadius: 16,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/product.png',
-                      fit: BoxFit.contain,
-                      width: 140,
-                      height: 140,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Bubble animation
+                    const SizedBox(
+                      width: 200,
+                      height: 200,
+                      child: BubbleAnimation(),
                     ),
-                  ),
+                    // Product image
+                    Container(
+                      width: 200,
+                      height: 200,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.transparent,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color.fromRGBO(255, 255, 255, 0.30),
+                            blurRadius: 20,
+                            spreadRadius: 3,
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/product.png',
+                          fit: BoxFit.contain,
+                          width: 200,
+                          height: 200,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -322,7 +529,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Padding(
+            const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 'Monitors Treemitator BLOOM in real-time. Track sensor readings with precision and a dynamic system.',
@@ -330,14 +537,14 @@ class HomeScreen extends StatelessWidget {
                 style: TextStyle(color: Color(0xFFADADAD), fontSize: 16),
               ),
             ),
-            SizedBox(height: 40),
+            const SizedBox(height: 40),
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Container(
                 height: 60,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  gradient: LinearGradient(
+                  gradient: const LinearGradient(
                     colors: [Color(0xFF8BC34A), Color(0xFF388E3C)],
                   ),
                 ),
@@ -350,7 +557,7 @@ class HomeScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
@@ -368,25 +575,25 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
             ),
-            SizedBox(height: 40),
+            const SizedBox(height: 40),
             _buildFeatureCard(
               'Real-Time Data',
               'Live sensor readings updated instantly from your Arduino devices',
               Icons.timeline,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             _buildFeatureCard(
               'Analytics',
               'Shows data its readings over time in graphs',
               Icons.bar_chart,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             _buildFeatureCard(
               'Secure',
               'Your sensor data is protected with enterprise-grade security',
               Icons.lock,
             ),
-            SizedBox(height: 24),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -432,7 +639,7 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// Dashboard Screen
+// Dashboard Screen with Improved Analytics and Scrollable Data Log
 class DashboardScreen extends StatefulWidget {
   final SensorViewModel viewModel;
 
@@ -475,7 +682,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isConnected = _timeSinceUpdate < 5;
+    final isConnected = widget.viewModel.isConnected;
     final data = widget.viewModel.latestSensorData;
     final history = widget.viewModel.sensorHistory;
 
@@ -571,7 +778,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _buildAnalyticsCard(history),
         const SizedBox(height: 32),
         const Text(
-          'Data Log',
+          'Data Log (Latest 10 Readings)',
           style: TextStyle(
             color: Colors.white,
             fontSize: 20,
@@ -579,10 +786,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        _buildDataLogHeader(),
-        const Divider(color: Colors.grey),
-        ...history.map((log) => _buildDataLogRow(log, log == data)),
-        const SizedBox(height: 16),
+        _buildScrollableDataLog(history, data),
+        const SizedBox(height: 32),
         const Text(
           'System Status',
           style: TextStyle(
@@ -608,7 +813,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       color: const Color(0xFF323232),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.black.withAlpha((0.5 * 255).round())),
+        side: BorderSide(color: Colors.black.withValues(alpha: 0.5)),
       ),
       elevation: 12,
       child: Container(
@@ -624,7 +829,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(width: 8),
                 Text(
                   title,
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
                 ),
               ],
             ),
@@ -647,6 +852,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildAnalyticsCard(List<SensorData> history) {
+    final displayData = history.length > 50 ? history.sublist(0, 50) : history;
+
     return Card(
       color: const Color(0xFF323232),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -654,23 +861,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Row(
-              children: [
-                _buildLegendItem(const Color(0xFF8BC34A), 'Temperature'),
-                const SizedBox(width: 12),
-                _buildLegendItem(const Color(0xFF61D4FF), 'Humidity'),
-                const SizedBox(width: 12),
-                _buildLegendItem(Colors.grey, 'VOC Index'),
-                const SizedBox(width: 12),
-                _buildLegendItem(const Color(0xFFFFC107), 'Oxygen (O2)'),
-                const SizedBox(width: 12),
-                _buildLegendItem(const Color(0xFFFF7043), 'CO2'),
-              ],
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildLegendItem(const Color(0xFF8BC34A), 'Temperature'),
+                  const SizedBox(width: 12),
+                  _buildLegendItem(const Color(0xFF61D4FF), 'Humidity'),
+                  const SizedBox(width: 12),
+                  _buildLegendItem(Colors.grey, 'VOC Index'),
+                  const SizedBox(width: 12),
+                  _buildLegendItem(const Color(0xFFFFC107), 'Oxygen (O2)'),
+                  const SizedBox(width: 12),
+                  _buildLegendItem(const Color(0xFFFF7043), 'CO2'),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             SizedBox(
-              height: 180,
-              child: history.isEmpty
+              height: 250,
+              child: displayData.isEmpty
                   ? const Center(
                       child: Text(
                         'No data available',
@@ -679,33 +889,124 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     )
                   : LineChart(
                       LineChartData(
-                        gridData: const FlGridData(show: false),
-                        titlesData: const FlTitlesData(show: false),
-                        borderData: FlBorderData(show: false),
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: false,
+                          horizontalInterval: 20,
+                          getDrawingHorizontalLine: (value) {
+                            return FlLine(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              strokeWidth: 1,
+                            );
+                          },
+                        ),
+                        titlesData: FlTitlesData(
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 40,
+                              getTitlesWidget: (value, meta) {
+                                return Text(
+                                  value.toInt().toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 10,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 30,
+                              interval: 10,
+                              getTitlesWidget: (value, meta) {
+                                if (value.toInt() >= displayData.length) {
+                                  return const SizedBox();
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Text(
+                                    (displayData.length - value.toInt())
+                                        .toString(),
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        borderData: FlBorderData(
+                          show: true,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            width: 1,
+                          ),
+                        ),
+                        minX: 0,
+                        maxX: (displayData.length - 1).toDouble(),
+                        minY: 0,
+                        maxY: 100,
+                        lineTouchData: LineTouchData(
+                          enabled: true,
+                          touchTooltipData: LineTouchTooltipData(
+                            tooltipBgColor: Colors.black87,
+                            tooltipRoundedRadius: 8,
+                            getTooltipItems: (touchedSpots) {
+                              return touchedSpots.map((spot) {
+                                String label = '';
+                                if (spot.barIndex == 0) label = 'Temp';
+                                if (spot.barIndex == 1) label = 'Humid';
+                                if (spot.barIndex == 2) label = 'VOC';
+                                if (spot.barIndex == 3) label = 'O2';
+                                if (spot.barIndex == 4) label = 'CO2';
+
+                                return LineTooltipItem(
+                                  '$label: ${spot.y.toStringAsFixed(1)}',
+                                  const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                );
+                              }).toList();
+                            },
+                          ),
+                        ),
                         lineBarsData: [
                           _buildLineChartBarData(
-                            history.reversed.take(20).toList(),
+                            displayData.reversed.toList(),
                             (data) => data.temperature,
                             const Color(0xFF8BC34A),
                           ),
                           _buildLineChartBarData(
-                            history.reversed.take(20).toList(),
+                            displayData.reversed.toList(),
                             (data) => data.humidity,
                             const Color(0xFF61D4FF),
                           ),
                           _buildLineChartBarData(
-                            history.reversed.take(20).toList(),
+                            displayData.reversed.toList(),
                             (data) => data.vocIndex.toDouble(),
                             Colors.grey,
                           ),
                           _buildLineChartBarData(
-                            history.reversed.take(20).toList(),
+                            displayData.reversed.toList(),
                             (data) => data.oxygen,
                             const Color(0xFFFFC107),
                           ),
                           _buildLineChartBarData(
-                            history.reversed.take(20).toList(),
-                            (data) => data.co2,
+                            displayData.reversed.toList(),
+                            (data) => data.co2 / 10,
                             const Color(0xFFFF7043),
                           ),
                         ],
@@ -731,8 +1032,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .toList(),
       isCurved: true,
       color: color,
-      barWidth: 2,
-      dotData: const FlDotData(show: false),
+      barWidth: 3,
+      dotData: FlDotData(
+        show: true,
+        getDotPainter: (spot, percent, barData, index) {
+          return FlDotCirclePainter(radius: 2, color: color, strokeWidth: 0);
+        },
+      ),
+      belowBarData: BarAreaData(
+        show: true,
+        color: color.withValues(alpha: 0.1),
+      ),
     );
   }
 
@@ -745,83 +1055,164 @@ class _DashboardScreenState extends State<DashboardScreen> {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 8),
-        Text(label, style: TextStyle(color: Colors.white, fontSize: 14)),
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
       ],
     );
   }
 
-  Widget _buildDataLogHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Text(
-              'Time',
-              style: TextStyle(
-                color: Color(0xFFADADAD),
-                fontWeight: FontWeight.bold,
-              ),
+  Widget _buildScrollableDataLog(
+    List<SensorData> history,
+    SensorData currentData,
+  ) {
+    final displayLogs = history.take(10).toList();
+
+    return Card(
+      color: const Color(0xFF323232),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 400),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: _buildDataLogHeader(),
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              'Temp',
-              textAlign: TextAlign.end,
-              style: TextStyle(
-                color: Color(0xFFADADAD),
-                fontWeight: FontWeight.bold,
-              ),
+            const Divider(color: Colors.grey, height: 1),
+            Expanded(
+              child: displayLogs.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text(
+                          'No data available',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: displayLogs.length,
+                      separatorBuilder: (context, index) => Divider(
+                        color: Colors.grey.withValues(alpha: 0.2),
+                        height: 1,
+                      ),
+                      itemBuilder: (context, index) {
+                        final log = displayLogs[index];
+                        final isLatest = log == currentData;
+                        return _buildDataLogRow(log, isLatest);
+                      },
+                    ),
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              'Humid',
-              textAlign: TextAlign.end,
-              style: TextStyle(
-                color: Color(0xFFADADAD),
-                fontWeight: FontWeight.bold,
+            if (history.length > 10)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(16),
+                    bottomRight: Radius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.arrow_downward,
+                      color: Color(0xFFADADAD),
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${history.length - 10} more readings available',
+                      style: const TextStyle(
+                        color: Color(0xFFADADAD),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              'VOC',
-              textAlign: TextAlign.end,
-              style: TextStyle(
-                color: Color(0xFFADADAD),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              'O2',
-              textAlign: TextAlign.end,
-              style: TextStyle(
-                color: Color(0xFFADADAD),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              'CO2',
-              textAlign: TextAlign.end,
-              style: TextStyle(
-                color: Color(0xFFADADAD),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildDataLogHeader() {
+    return Row(
+      children: const [
+        Expanded(
+          flex: 3,
+          child: Text(
+            'Time',
+            style: TextStyle(
+              color: Color(0xFFADADAD),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text(
+            'Temp',
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: Color(0xFFADADAD),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text(
+            'Humid',
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: Color(0xFFADADAD),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text(
+            'VOC',
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: Color(0xFFADADAD),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text(
+            'O2',
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: Color(0xFFADADAD),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text(
+            'CO2',
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: Color(0xFFADADAD),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -829,26 +1220,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       decoration: BoxDecoration(
         color: isLatest
-            ? Color(0xFF4CAF50).withAlpha((0.1 * 255).round())
+            ? const Color(0xFF4CAF50).withValues(alpha: 0.15)
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
           Expanded(
             flex: 3,
-            child: Text(
-              log.timestamp,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  log.timestamp,
+                  style: TextStyle(
+                    color: isLatest ? const Color(0xFF4CAF50) : Colors.white,
+                    fontSize: 13,
+                    fontWeight: isLatest ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                if (isLatest)
+                  const Text(
+                    'Latest',
+                    style: TextStyle(color: Color(0xFF4CAF50), fontSize: 10),
+                  ),
+              ],
             ),
           ),
           Expanded(
             flex: 2,
             child: Text(
-              '${log.temperature.toStringAsFixed(1)}°C',
+              '${log.temperature.toStringAsFixed(1)}°',
               textAlign: TextAlign.end,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
             ),
           ),
           Expanded(
@@ -856,7 +1260,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Text(
               '${log.humidity.toStringAsFixed(1)}%',
               textAlign: TextAlign.end,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
             ),
           ),
           Expanded(
@@ -864,15 +1268,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Text(
               log.vocIndex.toString(),
               textAlign: TextAlign.end,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
             ),
           ),
           Expanded(
             flex: 2,
             child: Text(
-              '${log.oxygen.toStringAsFixed(1)}%',
+              log.oxygen.toStringAsFixed(1),
               textAlign: TextAlign.end,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
             ),
           ),
           Expanded(
@@ -880,7 +1284,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Text(
               log.co2.toStringAsFixed(0),
               textAlign: TextAlign.end,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
             ),
           ),
         ],
@@ -895,6 +1299,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         : _timeSinceUpdate < 60
         ? '${_timeSinceUpdate}s ago'
         : '${_timeSinceUpdate ~/ 60}m ago';
+
+    final activeSensors = isConnected ? '5/5' : '0/5';
 
     return Card(
       color: const Color(0xFF323232),
@@ -913,11 +1319,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Row(
                   children: [
                     Container(
-                      width: 8,
-                      height: 8,
+                      width: 10,
+                      height: 10,
                       decoration: BoxDecoration(
                         color: connectionColor,
                         shape: BoxShape.circle,
+                        boxShadow: isConnected
+                            ? [
+                                BoxShadow(
+                                  color: connectionColor.withValues(alpha: 0.5),
+                                  blurRadius: 8,
+                                  spreadRadius: 2,
+                                ),
+                              ]
+                            : null,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -933,10 +1348,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-            Divider(color: Colors.grey.withAlpha((0.3 * 255).round())),
+            Divider(color: Colors.grey.withValues(alpha: 0.3)),
             _buildStatusRow('Last Update', lastUpdate),
-            Divider(color: Colors.grey.withAlpha((0.3 * 255).round())),
-            _buildStatusRow('Active Sensors', '4/4'),
+            Divider(color: Colors.grey.withValues(alpha: 0.3)),
+            _buildStatusRow('Active Sensors', activeSensors),
+            Divider(color: Colors.grey.withValues(alpha: 0.3)),
+            _buildStatusRow(
+              'Total Readings',
+              widget.viewModel.sensorHistory.length.toString(),
+            ),
           ],
         ),
       ),
@@ -949,10 +1369,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Color(0xFFADADAD), fontSize: 16)),
+          Text(
+            label,
+            style: const TextStyle(color: Color(0xFFADADAD), fontSize: 16),
+          ),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -1002,7 +1425,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Data Refresh Rate',
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('3 seconds', style: TextStyle(color: Colors.white)),
+              child: Text('Real-time', style: TextStyle(color: Colors.white)),
             ),
           ),
           const SizedBox(height: 16),
@@ -1065,7 +1488,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 8),
         Card(
-          color: Color(0xFF323232),
+          color: const Color(0xFF323232),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
