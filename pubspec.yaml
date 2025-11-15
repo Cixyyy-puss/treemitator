@@ -24,10 +24,11 @@ flutter:
   uses-material-design: true
   assets:
     - assets/product.png
+    - assets/logo.jpg
     - assets/logo.png
 
 # Configuration for flutter_launcher_icons
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/logo.png"
+  image_path: "assets/logo.jpg"
