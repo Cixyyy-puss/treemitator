@@ -766,7 +766,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             Expanded(
               child: _buildSensorCard(
-                'Oxygen (O2)',
+                'Oxygen',
                 '${data.oxygen.toStringAsFixed(1)}% O2',
                 'Normal',
                 Icons.bubble_chart,
@@ -790,7 +790,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             Expanded(
               child: _buildSensorCard(
-                'Carbon Dioxide(CO2)',
+                'Carbon Dioxide',
                 '${data.co2.toStringAsFixed(0)} ppm',
                 'Normal',
                 Icons.cloud,
