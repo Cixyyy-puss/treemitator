@@ -106,7 +106,7 @@ class SensorData {
   }
 }
 
-// Sensor View Model
+// Sensor View Model - UPDATED to read from board1 and board2
 class SensorViewModel extends ChangeNotifier {
   SensorData _latestSensorData = SensorData();
   final List<SensorData> _sensorHistory = [];
@@ -118,52 +118,88 @@ class SensorViewModel extends ChangeNotifier {
   int get lastUpdateTimeMillis => _lastUpdateTimeMillis;
   bool get isConnected => _isConnected;
 
-  final DatabaseReference _database = FirebaseDatabase.instance.ref('Sensors');
+  final DatabaseReference _board1Ref = FirebaseDatabase.instance.ref('board1');
+  final DatabaseReference _board2Ref = FirebaseDatabase.instance.ref('board2');
+
+  // Store latest data from each board
+  Map<String, dynamic> _board1Data = {};
+  Map<String, dynamic> _board2Data = {};
 
   SensorViewModel() {
     _loadHistoricalData();
-    _listenToSensorData();
+    _listenToBoard1();
+    _listenToBoard2();
     _startConnectionMonitor();
   }
 
   Future<void> _loadHistoricalData() async {
     // Data will persist in memory during app session
-    // To add permanent storage, use shared_preferences or a local database
     notifyListeners();
   }
 
   Future<void> _saveHistoricalData() async {
     // Data will persist in memory during app session
-    // To add permanent storage, use shared_preferences or a local database
   }
 
   void _startConnectionMonitor() {
     Timer.periodic(const Duration(seconds: 1), (timer) {
       final now = DateTime.now().millisecondsSinceEpoch;
       _isConnected =
-          _lastUpdateTimeMillis > 0 && (now - _lastUpdateTimeMillis) < 5000;
+          _lastUpdateTimeMillis > 0 && (now - _lastUpdateTimeMillis) < 10000;
       notifyListeners();
     });
   }
 
-  void _listenToSensorData() {
-    _database.onValue.listen((event) {
+  void _listenToBoard1() {
+    _board1Ref.onValue.listen((event) {
       if (event.snapshot.value != null) {
         final data = event.snapshot.value as Map<dynamic, dynamic>;
-        _lastUpdateTimeMillis = DateTime.now().millisecondsSinceEpoch;
-        _isConnected = true;
-
-        final newData = SensorData.fromMap(data);
-        _latestSensorData = newData;
-
-        _sensorHistory.insert(0, newData);
-
-        // Save data (currently in memory only)
-        _saveHistoricalData();
-
-        notifyListeners();
+        _board1Data = {
+          'temperature': data['temperature'] ?? 0.0,
+          'humidity': data['humidity'] ?? 0.0,
+          'voc_index': data['voc_index'] ?? 0,
+          'oxygen': data['oxygen'] ?? 0.0,
+        };
+        _updateCombinedData();
       }
     });
+  }
+
+  void _listenToBoard2() {
+    _board2Ref.onValue.listen((event) {
+      if (event.snapshot.value != null) {
+        final data = event.snapshot.value as Map<dynamic, dynamic>;
+        _board2Data = {
+          'co2': data['co2'] ?? 0.0,
+        };
+        _updateCombinedData();
+      }
+    });
+  }
+
+  void _updateCombinedData() {
+    _lastUpdateTimeMillis = DateTime.now().millisecondsSinceEpoch;
+    _isConnected = true;
+
+    // Combine data from both boards
+    final combinedData = {
+      'Temperature': _board1Data['temperature'] ?? 0.0,
+      'Humidity': _board1Data['humidity'] ?? 0.0,
+      'VOC_Index': _board1Data['voc_index'] ?? 0,
+      'Oxygen': _board1Data['oxygen'] ?? 0.0,
+      'CO2': _board2Data['co2'] ?? 0.0,
+      'Pressure': 0.0, // Not available from current boards
+    };
+
+    final newData = SensorData.fromMap(combinedData);
+    _latestSensorData = newData;
+
+    _sensorHistory.insert(0, newData);
+
+    // Save data (currently in memory only)
+    _saveHistoricalData();
+
+    notifyListeners();
   }
 }
 
@@ -854,6 +890,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildAnalyticsCard(List<SensorData> history) {
     final displayData = history.length > 50 ? history.sublist(0, 50) : history;
 
+    // Calculate dynamic Y-axis range based on actual data
+    double maxY = 100;
+    if (displayData.isNotEmpty) {
+      final allValues = <double>[];
+      for (var data in displayData) {
+        allValues.add(data.temperature);
+        allValues.add(data.humidity);
+        allValues.add(data.vocIndex.toDouble());
+        allValues.add(data.oxygen);
+        allValues.add(data.co2 / 10); // Scaled CO2
+      }
+      maxY = allValues.reduce((a, b) => a > b ? a : b);
+      maxY = ((maxY / 20).ceil() * 20).toDouble(); // Round up to nearest 20
+      if (maxY < 100) maxY = 100; // Minimum scale of 100
+    }
+
     return Card(
       color: const Color(0xFF323232),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -873,7 +925,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(width: 12),
                   _buildLegendItem(const Color(0xFFFFC107), 'Oxygen (O2)'),
                   const SizedBox(width: 12),
-                  _buildLegendItem(const Color(0xFFFF7043), 'CO2'),
+                  _buildLegendItem(const Color(0xFFFF7043), 'CO2 (÷10)'),
                 ],
               ),
             ),
@@ -892,7 +944,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         gridData: FlGridData(
                           show: true,
                           drawVerticalLine: false,
-                          horizontalInterval: 20,
+                          horizontalInterval: maxY / 5,
                           getDrawingHorizontalLine: (value) {
                             return FlLine(
                               color: Colors.white.withValues(alpha: 0.1),
@@ -905,6 +957,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 40,
+                              interval: maxY / 5,
                               getTitlesWidget: (value, meta) {
                                 return Text(
                                   value.toInt().toString(),
@@ -956,7 +1009,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         minX: 0,
                         maxX: (displayData.length - 1).toDouble(),
                         minY: 0,
-                        maxY: 100,
+                        maxY: maxY,
                         lineTouchData: LineTouchData(
                           enabled: true,
                           touchTooltipData: LineTouchTooltipData(
@@ -965,14 +1018,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             getTooltipItems: (touchedSpots) {
                               return touchedSpots.map((spot) {
                                 String label = '';
-                                if (spot.barIndex == 0) label = 'Temp';
-                                if (spot.barIndex == 1) label = 'Humid';
-                                if (spot.barIndex == 2) label = 'VOC';
-                                if (spot.barIndex == 3) label = 'O2';
-                                if (spot.barIndex == 4) label = 'CO2';
+                                String suffix = '';
+                                double displayValue = spot.y;
+                                
+                                if (spot.barIndex == 0) {
+                                  label = 'Temp';
+                                  suffix = '°C';
+                                }
+                                if (spot.barIndex == 1) {
+                                  label = 'Humid';
+                                  suffix = '%';
+                                }
+                                if (spot.barIndex == 2) {
+                                  label = 'VOC';
+                                  suffix = '';
+                                }
+                                if (spot.barIndex == 3) {
+                                  label = 'O2';
+                                  suffix = '%';
+                                }
+                                if (spot.barIndex == 4) {
+                                  label = 'CO2';
+                                  displayValue = spot.y * 10; // Show actual CO2 value
+                                  suffix = 'ppm';
+                                }
 
                                 return LineTooltipItem(
-                                  '$label: ${spot.y.toStringAsFixed(1)}',
+                                  '$label: ${displayValue.toStringAsFixed(1)}$suffix',
                                   const TextStyle(
                                     color: Colors.white,
                                     fontSize: 12,
@@ -1496,5 +1568,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
-  }
-}
+  }}
