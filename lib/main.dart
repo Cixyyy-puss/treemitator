@@ -169,9 +169,7 @@ class SensorViewModel extends ChangeNotifier {
     _board2Ref.onValue.listen((event) {
       if (event.snapshot.value != null) {
         final data = event.snapshot.value as Map<dynamic, dynamic>;
-        _board2Data = {
-          'co2': data['co2'] ?? 0.0,
-        };
+        _board2Data = {'co2': data['co2'] ?? 0.0};
         _updateCombinedData();
       }
     });
@@ -744,7 +742,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: _buildSensorCard(
                 'Temperature',
                 '${data.temperature.toStringAsFixed(1)}°C',
-                'Normal',
                 Icons.device_thermostat,
                 const Color(0xFF4CAF50),
               ),
@@ -754,7 +751,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: _buildSensorCard(
                 'Humidity',
                 '${data.humidity.toStringAsFixed(1)}%',
-                'Normal',
                 Icons.opacity,
                 const Color(0xFF4CAF50),
               ),
@@ -768,7 +764,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: _buildSensorCard(
                 'Oxygen',
                 '${data.oxygen.toStringAsFixed(1)}% O2',
-                'Normal',
                 Icons.bubble_chart,
                 const Color(0xFF4CAF50),
               ),
@@ -778,7 +773,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: _buildSensorCard(
                 'VOC Index',
                 '${data.vocIndex} IAQ',
-                'Normal',
                 Icons.air,
                 const Color(0xFF4CAF50),
               ),
@@ -792,7 +786,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: _buildSensorCard(
                 'Carbon Dioxide',
                 '${data.co2.toStringAsFixed(0)} ppm',
-                'Normal',
                 Icons.cloud,
                 const Color(0xFF4CAF50),
               ),
@@ -841,7 +834,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildSensorCard(
     String title,
     String value,
-    String status,
     IconData icon,
     Color iconColor,
   ) {
@@ -853,7 +845,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       elevation: 12,
       child: Container(
-        height: 120,
+        height: 140,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -863,23 +855,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Icon(icon, color: iconColor, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                Flexible(
+                  child: Text(
+                    title,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-            ),
-            Text(
-              status,
-              style: const TextStyle(color: Color(0xFFADADAD), fontSize: 12),
             ),
           ],
         ),
@@ -1020,7 +1017,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 String label = '';
                                 String suffix = '';
                                 double displayValue = spot.y;
-                                
+
                                 if (spot.barIndex == 0) {
                                   label = 'Temp';
                                   suffix = '°C';
@@ -1039,7 +1036,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 }
                                 if (spot.barIndex == 4) {
                                   label = 'CO2';
-                                  displayValue = spot.y * 10; // Show actual CO2 value
+                                  displayValue =
+                                      spot.y * 10; // Show actual CO2 value
                                   suffix = 'ppm';
                                 }
 
@@ -1568,4 +1566,5 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
-  }}
+  }
+}
